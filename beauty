@@ -1,0 +1,10 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+$application = require __DIR__ . '/bootstrap/kernel.php';
+
+$commands = require __DIR__ . '/config/commands.php';
+
+$consoleApp = new \Beauty\Cli\Console\ConsoleKernel($application->containerManager->getContainer(), $commands);
+exit($consoleApp->run($argv));

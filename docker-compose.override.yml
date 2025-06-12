@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      target: dev
+    environment:
+      PHP_IDE_CONFIG: "serverName=stage"
+    restart: unless-stopped
+    #ports:
+    #    - "9003:9003"
+
+  db:
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+
+  redis:
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
