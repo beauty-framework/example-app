@@ -14,16 +14,21 @@ use Beauty\Database\Connection\ConnectionInterface;
 use Beauty\Database\Connection\Exceptions\QueryException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
+use Psr\SimpleCache\CacheInterface;
+use Psr\SimpleCache\InvalidArgumentException;
 use RoadRunner\Lock\LockInterface;
 
 class TodoService
 {
+    const int CACHE_TTL = 60*30; // 30 minutes
+
     /**
      * @param ConnectionInterface $connection
      * @param TodoRepositoryInterface $todoRepository
      * @param LoggerInterface $logger
      * @param EventDispatcherInterface $eventDispatcher
      * @param LockInterface $lock
+     * @param CacheInterface $cache
      */
     public function __construct(
         protected ConnectionInterface      $connection,
@@ -31,6 +36,7 @@ class TodoService
         protected LoggerInterface          $logger,
         protected EventDispatcherInterface $eventDispatcher,
         protected LockInterface            $lock,
+        protected CacheInterface           $cache,
     )
     {
     }
@@ -38,24 +44,43 @@ class TodoService
     /**
      * @param int $userId
      * @return array
+     * @throws InvalidArgumentException
      */
     public function allByUserId(int $userId): array
     {
-        return $this->todoRepository->findByUserId($userId);
+        $cacheKey = "todos:$userId";
+
+        $todos = $this->cache->get($cacheKey);
+
+        if (!$todos) {
+            $todos = $this->todoRepository->findByUserId($userId);
+            $this->cache->set($cacheKey, $todos, self::CACHE_TTL);
+        }
+
+        return $todos;
     }
 
     /**
      * @param int $id
      * @param int $userId
      * @return Task
+     * @throws InvalidArgumentException
      * @throws NotFoundException
      */
     public function get(int $id, int $userId): Task
     {
-        $task = $this->todoRepository->findById($id, $userId);
+        $cacheKey = "todos:$id:$userId";
+
+        $task = $this->cache->get($cacheKey);
 
         if (!$task) {
-            throw new NotFoundException('Task not found');
+            $task = $this->todoRepository->findById($id, $userId);
+
+            if (!$task) {
+                throw new NotFoundException('Task not found');
+            }
+
+            $this->cache->set($cacheKey, $task, self::CACHE_TTL);
         }
 
         return $task;
@@ -71,6 +96,8 @@ class TodoService
         try {
             return $this->connection->transaction(function (ConnectionInterface $tx) use ($todo) {
                 $task = $this->todoRepository->create($todo);
+
+                $this->changeCache($task->getId(), $todo->userId, $task);
 
                 $this->eventDispatcher->dispatch(new SaveTaskInLogEvent($task->getId(), $task->getUserId(), 'Task created'));
 
@@ -99,6 +126,8 @@ class TodoService
         try {
             return $this->connection->transaction(function (ConnectionInterface $tx) use ($id, $todo) {
                 $task = $this->todoRepository->update($id, $todo);
+
+                $this->changeCache($id, $todo->userId, $task);
 
                 $this->eventDispatcher->dispatch(new SaveTaskInLogEvent($task->getId(), $task->getUserId(), 'Task updated'));
 
@@ -130,6 +159,9 @@ class TodoService
             $this->connection->transaction(function (ConnectionInterface $tx) use ($id, $userId) {
                 $this->todoRepository->delete($id, $userId);
 
+                $this->deleteCache($userId);
+                $this->cache->delete("todos:$id:$userId");
+
                 $this->eventDispatcher->dispatch(new SaveTaskInLogEvent($id, $userId, 'Task deleted'));
             });
         } catch (QueryException $exception) {
@@ -159,6 +191,9 @@ class TodoService
             return $this->connection->transaction(function (ConnectionInterface $tx) use ($id, $userId, $isCompleted) {
                 $this->todoRepository->updateStatus($id, $userId, $isCompleted);
 
+                $this->deleteCache($userId);
+                $this->deleteTaskCache($id, $userId);
+
                 $this->eventDispatcher->dispatch(new SaveTaskInLogEvent($id, $userId, 'Task status updated to ' . $isCompleted));
 
                 return true;
@@ -169,5 +204,40 @@ class TodoService
         } finally {
             LockHelper::releaseLock($this->lock, $id, $userId, $lockId);
         }
+    }
+
+    /**
+     * @param int $id
+     * @param int $userId
+     * @param Task $task
+     * @param int $ttl
+     * @return void
+     * @throws InvalidArgumentException
+     */
+    protected function changeCache(int $id, int $userId, Task $task, int $ttl = self::CACHE_TTL): void
+    {
+        $this->deleteCache($userId);
+        $this->cache->set("todos:$id:$userId", $task, $ttl);
+    }
+
+    /**
+     * @param int $userId
+     * @return void
+     * @throws InvalidArgumentException
+     */
+    protected function deleteCache(int $userId): void
+    {
+        $this->cache->delete("todos:$userId");
+    }
+
+    /**
+     * @param int $id
+     * @param int $userId
+     * @return void
+     * @throws InvalidArgumentException
+     */
+    protected function deleteTaskCache(int $id, int $userId): void
+    {
+        $this->cache->delete("todos:$id:$userId");
     }
 }
