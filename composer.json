@@ -15,7 +15,8 @@
     "beauty-framework/cache": "^1.0",
     "beauty-framework/parallels": "^1.0",
     "beauty-framework/jobs": "^1.0",
-    "symfony/password-hasher": "^7.3"
+    "symfony/password-hasher": "^7.3",
+    "beauty-framework/openapi-support": "^1.0"
   },
   "autoload": {
     "psr-4": {

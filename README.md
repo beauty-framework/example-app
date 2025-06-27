@@ -171,6 +171,9 @@ All routes require JSON bodies and respond with JSON. Authorization via `Bearer 
 
 * **Auth:** ✅ `Bearer <token>`
 
+
+👉 API Docs URL: http://localhost:8080/docs/api
+
 ---
 
 ## 🧠 CLI Commands
