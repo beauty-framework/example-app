@@ -38,7 +38,7 @@ class AuthController
     #[Route(method: HttpMethodsEnum::POST, path: '/api/auth/login')]
     #[OAT\Post(
         path: '/auth/login',
-        operationId: 'Login',
+        summary: 'Login',
         security: [],
         requestBody: new OAT\RequestBody(
             required: true,
@@ -107,7 +107,7 @@ class AuthController
     #[Route(method: HttpMethodsEnum::POST, path: '/api/auth/register')]
     #[OAT\Post(
         path: '/auth/register',
-        operationId: 'Register',
+        summary: 'Register',
         security: [],
         requestBody: new OAT\RequestBody(
             required: true,

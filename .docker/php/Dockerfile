@@ -52,7 +52,7 @@ USER appuser
 
 EXPOSE 8080
 
-CMD ["rr", "serve", "-c", ".rr.yaml"]
+CMD ["rr", "serve", "-c", ".rr.prod.yaml"]
 
 FROM base AS dev
 
